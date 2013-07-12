@@ -34,133 +34,61 @@ module Ttr
     end
   end
 
-  ##### responce classes
-
-  # basic responce class
+  ##### response interface
   class Response
     attr_accessor :status, :seq, :content, :error
 
-    def initialize(rsp)
+    def response_attr_accessor(*args)
+      args.each do |arg|
+        attr = arg.to_s
+        eval("def self.#{attr};@#{attr};end")
+        eval("def self.#{attr}=(val);@#{attr}=val;end")
+      end
+    end
+
+    def initialize(req, rsp)
       @rsp = rsp
 
       @status = @rsp["status"]
       @seq = @rsp["seq"]
       @content = @rsp["content"]
       @error = @rsp["content"]["error"] if @status == API_STATUS_ERR
+
+      # specialization
+      case req.op
+        when :GetVersion
+        @version = @content["version"]
+        response_attr_accessor :version if @version
+      when :GetLevel
+        @version = @content["level"]
+        response_attr_accessor :level if @level
+      when :Login
+        @sid = @content["session_id"]
+        response_attr_accessor :sid if @sid
+      when :GetFeedTree
+        @categories = @content["categories"]
+        response_attr_accessor :categories if @categories
+      when :IsLoggedIn
+        @logged_in = @content["status"]
+        response_attr_accessor :logged_in if @status
+      end
     end
   end
 
-  class ResponseGetLevel < Response
-    attr_accessor :level
-
-    def initialize(rsp)
-      super
-
-      @level = @content["level"]
-    end
-  end
-
-  class ResponseGetVersion < Response
-    attr_accessor :version
-
-    def initialize(rsp)
-      super
-
-      @version = @content["version"]
-    end
-  end
-
-  class ResponseIsLoggedIn < Response
-    attr_accessor :logged_in
-
-    def initialize(rsp)
-      super
-
-      @logged_in = @content["status"]
-    end
-  end
-
-  class ResponseLogin < Response
-    attr_accessor :sid
-
-    def initialize(rsp)
-      super
-
-      @sid = @content["session_id"]
-    end
-  end
-
-  class ResponseGetFeedTree < Response
-    attr_accessor :categories
-
-    def initialize(rsp)
-      super
-
-      @categories = @content["categories"]
-    end
-  end
-
-  ##### end of responce classes
-
-  ##### request classes
-
-  # basic request class
+  ##### request interface
   class Request
-    attr_accessor :request
+    attr_accessor :request, :op
 
-    def initialize(op)
-      @request = {op: op}
+    def initialize(op, args)
+      @op = op
+      @request = {op: op.to_s}
+      @request.merge! args
     end
 
     def to_hash
       @request
     end
   end
-
-  class Login < Request
-    def initialize(user, pass)
-      super "login"
-
-      @request[:user] = user
-      @request[:password] = pass
-    end
-  end
-
-  class LoggedIn < Request
-    def initialize(op, sid)
-      super op
-
-      @request[:sid] = sid
-    end
-  end
-
-  class Logout < LoggedIn
-    def initialize(sid)
-      super "logout", sid
-    end
-  end
-
-  class GetVersion < LoggedIn
-    def initialize(sid)
-      super "getVersion", sid
-    end
-  end
-
-  class IsLoggedIn < LoggedIn
-    def initialize(sid)
-      super "isLoggedIn", sid
-    end
-  end
-
-  class GetFeedTree < LoggedIn
-    def initialize(sid, include_empty)
-      super "getFeedTree", sid
-
-      @request[:include_empty] = include_empty
-    end
-  end
-
-  ##### end of request classes
 
   # represent Tiny Tiny RSS client
   # usage:
@@ -174,34 +102,38 @@ module Ttr
     def initialize(info)
       @rpc = RPCRequest.new info[:url]
       @user = info[:user]
-      @pass = info[:pass]
+      @password = info[:pass]
 
       @sid = nil
     end
 
     def logout
-      @rpc.request Logout.new @sid
+      @rpc.request Request.new :Logout, {sid: @sid}
     end
 
     def login
-      rsp = @rpc.request Login.new @user, @pass
-      @sid = ResponseLogin.new(rsp).sid
+      req = Request.new :Login, {user: @user, password: @password}
+      rsp = @rpc.request req
+      @sid = Response.new(req, rsp).sid
     end
 
     def logged_in?
       return false unless @sid
-      rsp = @rpc.request IsLoggedIn.new @sid
-      ResponseIsLoggedIn.new(rsp).logged_in
+      req = Request.new :IsLoggedIn, {sid: @sid}
+      rsp = @rpc.request req
+      Response.new(req, rsp).logged_in
     end
 
     def version
-      rsp = @rpc.request GetVersion.new @sid
-      ResponseGetVersion.new(rsp).version
+      req = Request.new :GetVersion, {sid: @sid}
+      rsp = @rpc.request req
+      Response.new(req, rsp).version
     end
 
     def get_feed_tree include_empty=false
-      rsp = @rpc.request GetFeedTree.new @sid, include_empty
-      ResponseGetFeedTree.new(rsp).categories
+      req = Request.new :GetFeedTree, {sid: @sid, include_empty: include_empty}
+      rsp = @rpc.request req
+      Response.new(req, rsp).categories
     end
   end
 
