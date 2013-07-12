@@ -2,27 +2,27 @@ require "thread"
 require 'net/http'
 require "json"
 
-API_STATUS_OK = 0
-API_STATUS_ERR = 1
-
 module Ttr
+  API_STATUS_OK = 0
+  API_STATUS_ERR = 1
+
   class << self; attr_accessor :debug; end
 
   # sends a request to JSON-RPC server
   # usage:
-  #  req = RpcReq.new "http://your.host/ttr/api"
-  #  rsp = req.request {:op => "login"}
-  class RpcReq
-    def initialize url
+  #  req = RPCRequest.new "http://your.host/ttr/api"
+  #  rsp = req.request {op: "login"}
+  class RPCRequest
+    def initialize(url)
       @uri = URI.parse url
     end
 
     # accepts a request in hash
     # returns response in hash
-    def request body
+    def request(body)
       http = Net::HTTP.new(@uri.host, @uri.port)
 
-      req = Net::HTTP::Post.new(@uri.path, initheader = {'Content-Type' =>'application/json'})
+      req = Net::HTTP::Post.new(@uri.path, initheader = {'Content-Type' => 'application/json'})
       req.body = JSON.generate body.to_hash
 
 
@@ -37,10 +37,10 @@ module Ttr
   ##### responce classes
 
   # basic responce class
-  class Rsp
+  class Response
     attr_accessor :status, :seq, :content, :error
 
-    def initialize rsp
+    def initialize(rsp)
       @rsp = rsp
 
       @status = @rsp["status"]
@@ -50,51 +50,51 @@ module Ttr
     end
   end
 
-  class RspGetLevel < Rsp
+  class ResponseGetLevel < Response
     attr_accessor :level
 
-    def initialize rsp
-      super rsp
+    def initialize(rsp)
+      super
 
       @level = @content["level"]
     end
   end
 
-  class RspGetVersion < Rsp
+  class ResponseGetVersion < Response
     attr_accessor :version
 
-    def initialize rsp
-      super rsp
+    def initialize(rsp)
+      super
 
       @version = @content["version"]
     end
   end
 
-  class RspIsLoggedIn < Rsp
+  class ResponseIsLoggedIn < Response
     attr_accessor :logged_in
 
-    def initialize rsp
-      super rsp
+    def initialize(rsp)
+      super
 
       @logged_in = @content["status"]
     end
   end
 
-  class RspLogin < Rsp
+  class ResponseLogin < Response
     attr_accessor :sid
 
-    def initialize rsp
-      super rsp
+    def initialize(rsp)
+      super
 
       @sid = @content["session_id"]
     end
   end
 
-  class RspGetFeedTree < Rsp
+  class ResponseGetFeedTree < Response
     attr_accessor :categories
 
-    def initialize rsp
-      super rsp
+    def initialize(rsp)
+      super
 
       @categories = @content["categories"]
     end
@@ -105,11 +105,11 @@ module Ttr
   ##### request classes
 
   # basic request class
-  class Req
+  class Request
     attr_accessor :request
 
-    def initialize op
-      @request = {:op => op}
+    def initialize(op)
+      @request = {op: op}
     end
 
     def to_hash
@@ -117,8 +117,8 @@ module Ttr
     end
   end
 
-  class Login < Req
-    def initialize user, pass
+  class Login < Request
+    def initialize(user, pass)
       super "login"
 
       @request[:user] = user
@@ -126,8 +126,8 @@ module Ttr
     end
   end
 
-  class LoggedIn < Req
-    def initialize op, sid
+  class LoggedIn < Request
+    def initialize(op, sid)
       super op
 
       @request[:sid] = sid
@@ -135,25 +135,25 @@ module Ttr
   end
 
   class Logout < LoggedIn
-    def initialize sid
+    def initialize(sid)
       super "logout", sid
     end
   end
 
   class GetVersion < LoggedIn
-    def initialize sid
+    def initialize(sid)
       super "getVersion", sid
     end
   end
 
   class IsLoggedIn < LoggedIn
-    def initialize sid
+    def initialize(sid)
       super "isLoggedIn", sid
     end
   end
 
   class GetFeedTree < LoggedIn
-    def initialize sid, include_empty
+    def initialize(sid, include_empty)
       super "getFeedTree", sid
 
       @request[:include_empty] = include_empty
@@ -164,15 +164,15 @@ module Ttr
 
   # represent Tiny Tiny RSS client
   # usage:
-  #  req = {:url => 'http://your.host/ttr/api', :user => 'username', :pass => 'password'}
+  #  req = {url: 'http://your.host/ttr/api', user: 'username', pass: 'password'}
   #  ttr = Ttr::Client.new options
   #  ttr.login
   # puts ttrc.version
   class Client
     attr_accessor :sid
 
-    def initialize info
-      @rpc = RpcReq.new info[:url]
+    def initialize(info)
+      @rpc = RPCRequest.new info[:url]
       @user = info[:user]
       @pass = info[:pass]
 
@@ -185,23 +185,23 @@ module Ttr
 
     def login
       rsp = @rpc.request Login.new @user, @pass
-      @sid = RspLogin.new(rsp).sid
+      @sid = ResponseLogin.new(rsp).sid
     end
 
     def logged_in?
       return false unless @sid
       rsp = @rpc.request IsLoggedIn.new @sid
-      RspIsLoggedIn.new(rsp).logged_in
+      ResponseIsLoggedIn.new(rsp).logged_in
     end
 
     def version
       rsp = @rpc.request GetVersion.new @sid
-      RspGetVersion.new(rsp).version
+      ResponseGetVersion.new(rsp).version
     end
 
     def get_feed_tree include_empty=false
       rsp = @rpc.request GetFeedTree.new @sid, include_empty
-      RspGetFeedTree.new(rsp).categories
+      ResponseGetFeedTree.new(rsp).categories
     end
   end
 
