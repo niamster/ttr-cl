@@ -1,4 +1,4 @@
-require 'net/http'
+require 'net/https'
 require "json"
 
 module Ttr
@@ -13,11 +13,16 @@ module Ttr
   #  rsp = req.request :Login, user: 'username', pass: 'password'
   class RpcClient
 
-    def initialize(url)
+    def initialize(url, trust_any_certificate=false)
       uri = URI.parse url
 
-      @http = Net::HTTP.start uri.host, uri.port, \
-        :use_ssl => uri.scheme == 'https'
+      @http = Net::HTTP.new uri.host, uri.port
+      if uri.scheme == 'https'
+        @http.use_ssl = true
+        if trust_any_certificate
+            @http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+        end
+      end
       @http.keep_alive_timeout = 180
 
       @req = Net::HTTP::Post.new uri.path

@@ -48,6 +48,8 @@ parser.usage unless ttr_options[:url]
 parser.usage unless ttr_options[:user]
 parser.usage unless ttr_options[:pass]
 
+ttr_options[:trust_any_certificate] = true
+
 Ttr.debug = options[:debug]
 ttrc = Ttr::Api.new ttr_options
 

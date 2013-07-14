@@ -30,7 +30,7 @@ module Ttr
     attr_accessor :sid
 
     def initialize(info)
-      @rpc = RpcClient.new info[:url]
+      @rpc = RpcClient.new info[:url], info[:trust_any_certificate]
 
       @user = info[:user]
       @password = info[:pass]
