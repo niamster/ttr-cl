@@ -14,7 +14,14 @@ module Ttr
   class RpcClient
 
     def initialize(url)
-      @uri = URI.parse url
+      uri = URI.parse url
+
+      @http = Net::HTTP.start uri.host, uri.port, \
+        :use_ssl => uri.scheme == 'https'
+      @http.keep_alive_timeout = 180
+
+      @req = Net::HTTP::Post.new uri.path
+      @req['Content-Type'] = 'application/json'
     end
 
     # sends a request to the RPC server
@@ -65,14 +72,10 @@ module Ttr
     
     # actually sends a request to the server
     def send_request(body)
-      req = Net::HTTP::Post.new @uri.path
-      req['Content-Type'] = 'application/json'
-      req.body = body
+      @req.body = body
 
-      http = Net::HTTP.new @uri.host, @uri.port
-
-      puts ">> req: #{req.body}" if Ttr.debug
-      res = http.request req
+      puts ">> req: #{body}" if Ttr.debug
+      res = @http.request @req
       puts ">> rsp: #{res.body}" if Ttr.debug
 
       res.body
